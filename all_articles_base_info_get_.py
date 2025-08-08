@@ -43,12 +43,13 @@ def get_article_links_from_page(driver):
     return article_links
 
 
-def save_articles_to_csv(articles):
+def save_articles_to_csv(articles, account_name=""):
     """
     将文章信息保存到CSV文件中
 
     Args:
         articles (list): 文章信息列表
+        account_name (str): 账号名称
     """
     if not articles:
         print("没有文章需要保存")
@@ -56,7 +57,8 @@ def save_articles_to_csv(articles):
 
     try:
         with open(filename, 'w', encoding='utf-8-sig', newline='') as csvfile:
-            fieldnames = ['title', 'link', 'release_date', 'collect_time']
+            # 添加账号名称列到字段名，以及is_free字段
+            fieldnames = ['account_name', 'title', 'link', 'release_date', 'is_free', 'collect_time']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             # 写入表头
@@ -64,10 +66,21 @@ def save_articles_to_csv(articles):
 
             # 写入数据
             for article in articles:
-                writer.writerow(article)
+                # 为每篇文章添加账号名称
+                article_with_account = {
+                    'account_name': account_name,
+                    'title': article['title'],
+                    'link': article['link'],
+                    'release_date': article['release_date'],
+                    'is_free': article['is_free'],  # 1代表免费，0代表付费
+                    'collect_time': article['collect_time']
+                }
+                writer.writerow(article_with_account)
 
         print(f"文章信息已保存到文件: {filename}")
         print(f"共保存 {len(articles)} 篇文章")
+        if account_name:
+            print(f"账号名称: {account_name}")
 
     except Exception as e:
         print(f"保存CSV文件时出错: {e}")
@@ -75,13 +88,13 @@ def save_articles_to_csv(articles):
 
 def get_article_info_from_page(driver):
     """
-    从当前页面获取微信文章信息（标题、链接、发布日期）
+    从当前页面获取微信文章信息（标题、链接、发布日期、是否付费）
 
     Args:
         driver: WebDriver实例
 
     Returns:
-        list: 包含文章信息字典的列表 [{'title': '', 'link': '', 'date': ''}, ...]
+        list: 包含文章信息字典的列表 [{'title': '', 'link': '', 'date': '', 'is_free': 1/0}, ...]
     """
     articles = []
 
@@ -133,17 +146,30 @@ def get_article_info_from_page(driver):
                                                             './/div[@class="inner_link_article_date"]/span[1]')
                             release_date = date_elem.text.strip() if date_elem else ""
 
+                            # 检查是否付费
+                            is_free = 1  # 默认为免费
+                            try:
+                                # 查找"付费"标签
+                                pay_tag = parent.find_elements(By.XPATH,
+                                                               './/div[contains(@class, "weui-desktop-key-tag_pay")]')
+                                if pay_tag:
+                                    is_free = 0  # 找到付费标签，标记为付费
+                            except:
+                                pass
+
                             # 获取当前时间作为采集日期
-                            collect_time = datetime.now().strftime("%Y%m%d%H%M%S")
+                            collect_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             if link and link.startswith("https://mp.weixin.qq.com/s"):
                                 article_info = {
                                     'title': title,
                                     'link': link,
                                     'release_date': release_date,
+                                    'is_free': is_free,  # 1代表免费，0代表付费
                                     'collect_time': collect_time
                                 }
                                 articles.append(article_info)
-                                print(f"  标题: {title}，链接: {link}，发布日期: {release_date}, 采集日期: {collect_time}")
+                                print(
+                                    f"  标题: {title}，链接: {link}，发布日期: {release_date}, 是否免费: {is_free}, 采集日期: {collect_time}")
 
                         except Exception as e:
                             print(f"处理文章元素时出错: {e}")
@@ -169,6 +195,17 @@ def get_article_info_from_page(driver):
                     date_element = item.find_element(By.XPATH, './/div[@class="inner_link_article_date"]/span[1]')
                     release_date = date_element.text.strip() if date_element else ""
 
+                    # 检查是否付费 (1代表免费，0代表付费)
+                    is_free = 1  # 默认为免费
+                    try:
+                        # 查找"付费"标签
+                        pay_tag_elements = item.find_elements(By.XPATH,
+                                                              './/div[@class="inner_link_article_title"]//div[contains(@class, "weui-desktop-key-tag_pay") and text()="付费"]')
+                        if pay_tag_elements:
+                            is_free = 0  # 找到付费标签，标记为付费
+                    except:
+                        pass
+
                     # 获取当前时间作为采集日期
                     collect_time = datetime.now().strftime("%Y%m%d%H%M%S")
                     # 只有当链接以https://mp.weixin.qq.com/s开头时才添加
@@ -177,10 +214,11 @@ def get_article_info_from_page(driver):
                             'title': title,
                             'link': link,
                             'release_date': release_date,
+                            'is_free': is_free,  # 1代表免费，0代表付费
                             'collect_time': collect_time
                         }
                         articles.append(article_info)
-                        print(f"  标题: {title}，链接: {link}，发布日期: {release_date}, 采集日期: {collect_time}")
+                        print(f"  标题: {title}，链接: {link}，发布日期: {release_date}, 是否免费: {is_free}, 采集日期: {collect_time}")
                         print("---------------------------------------------------------------------------")
                     else:
                         print(f"  跳过无效链接: {link}")
@@ -337,9 +375,12 @@ if __name__ == '__main__':
         print("已连接到现有浏览器窗口")
         print("当前页面标题:", driver.title)
 
-        # 打印当前页面的部分源码，用于调试
-        print("页面部分源码:")
-        print(driver.page_source[:1000])
+        # 打印更多页面信息用于调试
+        print("页面URL:", driver.current_url)
+
+        # 获取账号名称
+        print("请输入当前账号名称，并以回车结束...")
+        account_name = input()
 
         # 查找所有页面的微信文章链接
         print("正在收集所有页面的文章链接...")
@@ -348,9 +389,9 @@ if __name__ == '__main__':
         if len(article_link_list) == 0:
             print("没有找到新的微信文章链接")
         else:
-            # 保存文章信息到CSV文件
+            # 保存文章信息到CSV文件，包含账号名称
             print("正在保存文章信息到CSV文件...")
-            save_articles_to_csv(article_link_list)
+            save_articles_to_csv(article_link_list, account_name)
 
     except Exception as e:
         print(f"获取链接时出错: {e}")
