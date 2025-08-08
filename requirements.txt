@@ -3,3 +3,4 @@ requests>=2.25.0
 webdriver-manager>=3.8.0
 lxml>=4.6.0
 beautifulsoup4>=4.9.0
+urllib3~=2.5.0
