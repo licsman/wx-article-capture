@@ -1,27 +1,14 @@
-import sys
+import argparse
 import time
 from time import sleep
 import re
 import os
 import json
-import random
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchWindowException, WebDriverException, NoSuchElementException
-
-
-def connect_to_existing_chrome():
-    """连接到已经打开的Chrome浏览器"""
-    chrome_options = Options()
-    chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-    try:
-        driver = webdriver.Chrome(options=chrome_options)
-        return driver
-    except Exception as e:
-        print(f"连接到浏览器时出错: {e}")
-        return None
-
+from download_articles_from_db import get_all_articles
+from download_articles_from_db import create_connection
 
 def create_chrome_for_pdf(save_path):
     """创建用于PDF打印的Chrome浏览器实例"""
@@ -59,26 +46,6 @@ def create_chrome_for_pdf(save_path):
         return None
 
 
-def extract_article_title(page_source):
-    """
-    从页面源码中提取文章标题
-    """
-    # 使用正则表达式匹配<meta property="og:title" content="..." />中的标题
-    title_pattern = r'<meta\s+property="og:title"\s+content="([^"]+)"\s*/?>'
-    match = re.search(title_pattern, page_source, re.IGNORECASE)
-
-    if match:
-        return match.group(1)
-    else:
-        # 备用方案：尝试从<title>标签获取
-        title_pattern = r'<title>(.*?)</title>'
-        match = re.search(title_pattern, page_source, re.IGNORECASE)
-        if match:
-            return match.group(1)
-
-    return "未命名文章"
-
-
 def wait_for_pdf_generation(save_path, file_name, timeout=60):
     """
     等待PDF文件生成
@@ -112,131 +79,6 @@ def wait_for_pdf_generation(save_path, file_name, timeout=60):
     return False
 
 
-def get_article_links_from_page(driver):
-    """
-    从当前页面获取微信文章链接
-
-    Args:
-        driver: WebDriver实例
-
-    Returns:
-        list: 微信文章链接列表
-    """
-    links = driver.find_elements(By.XPATH, "//a[@href]")
-    article_links = []
-
-    for link in links:
-        href = link.get_attribute("href")
-        if href and href.startswith("https://mp.weixin.qq.com/s"):
-            article_links.append(href)
-
-    return article_links
-
-
-def load_handled_links():
-    """
-    从文件中加载已处理的链接
-
-    Returns:
-        set: 已处理的链接集合
-    """
-    handled_links = set()
-    if os.path.exists("handled_links.txt"):
-        try:
-            with open("handled_links.txt", "r", encoding="utf-8") as f:
-                for line in f:
-                    link = line.strip()
-                    if link:
-                        handled_links.add(link)
-            print(f"已加载 {len(handled_links)} 个已处理的链接")
-        except Exception as e:
-            print(f"读取已处理链接文件时出错: {e}")
-    return handled_links
-
-
-def save_handled_link(link):
-    """
-    将链接保存到已处理链接文件中
-
-    Args:
-        link (str): 要保存的链接
-    """
-    try:
-        with open("handled_links.txt", "a", encoding="utf-8") as f:
-            f.write(link + "\n")
-    except Exception as e:
-        print(f"保存链接时出错: {e}")
-
-
-def collect_all_article_links(driver):
-    """
-    收集所有页面中的微信文章链接（包括翻页）
-
-    Args:
-        driver: WebDriver实例
-
-    Returns:
-        list: 所有不重复的微信文章链接
-    """
-
-    # 加载已处理的链接
-    handled_links = load_handled_links()
-
-    all_links = set()  # 使用集合自动去重
-    page_number = 1
-
-    while True:
-        print(f"正在处理第 {page_number} 页...")
-
-        # 获取当前页面的链接
-        current_page_links = get_article_links_from_page(driver)
-        print(f"第 {page_number} 页找到 {len(current_page_links)} 个链接")
-
-        # 添加到集合中（自动去重），并保存新链接
-        new_links_count = 0
-        for link in current_page_links:
-            if link not in handled_links:
-                all_links.add(link)
-                handled_links.add(link)
-                save_handled_link(link)
-                new_links_count += 1
-                print(f"  添加新链接: {link}")
-            else:
-                print(f"  跳过已处理链接: {link}")
-
-        print(f"第 {page_number} 页新增 {new_links_count} 个链接")
-
-        # 查找"下一页"按钮
-        try:
-            next_button = driver.find_element(By.XPATH,
-                                              '//a[@class="weui-desktop-btn weui-desktop-btn_default weui-desktop-btn_mini" and text()="下一页"]')
-
-            # 检查按钮是否可用（不是disabled状态）
-            if next_button.is_enabled():
-                print("点击下一页按钮...")
-                next_button.click()
-
-                # 随机等待几秒钟，模拟人工操作
-                wait_time = random.randint(2, 5)
-                print(f"等待 {wait_time} 秒...")
-                sleep(wait_time)
-
-                page_number += 1
-            else:
-                print("下一页按钮不可用，已到达最后一页")
-                break
-
-        except NoSuchElementException:
-            print("未找到下一页按钮，已到达最后一页")
-            break
-        except Exception as e:
-            print(f"点击下一页时出错: {e}")
-            break
-
-    print(f"总共收集到 {len(all_links)} 个新文章链接")
-    return list(all_links)
-
-
 def main():
     save_path = os.path.join(os.getcwd(), "pdf_articles")
 
@@ -244,44 +86,7 @@ def main():
     os.makedirs(save_path, exist_ok=True)
     print(f"PDF将保存到: {save_path}")
 
-    # 第一步：连接到现有的远程调试浏览器以获取链接
-    print("正在连接到现有浏览器以获取文章链接...")
-    driver = connect_to_existing_chrome()
-
-    if not driver:
-        print("无法连接到浏览器。请确保：")
-        print("1. 完全关闭所有Chrome浏览器实例")
-        print("2. 运行以下命令启动支持远程调试的Chrome：")
-        print("/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome \\")
-        print("    --remote-debugging-port=9222 \\")
-        print("    --user-data-dir=\"/Users/houmengqi/Library/Application Support/Google/Chrome_Remote\"")
-        print("3. 在打开的浏览器中访问微信公众号并登录")
-        return
-
-    article_link_list = []
-
-    try:
-        print("已连接到现有浏览器窗口")
-        print("当前页面标题:", driver.title)
-
-        # 查找所有页面的微信文章链接
-        print("正在收集所有页面的文章链接...")
-        article_link_list = collect_all_article_links(driver)
-
-        if len(article_link_list) == 0:
-            print("没有找到新的微信文章链接")
-            return
-
-    except Exception as e:
-        print(f"获取链接时出错: {e}")
-        import traceback
-        traceback.print_exc()
-        return
-    finally:
-        # 不要关闭原始浏览器连接，用户可能还需要使用它
-        pass
-
-    # 第二步：创建新的浏览器实例用于PDF下载
+    # 创建新的浏览器实例用于PDF下载
     print("正在创建用于PDF下载的浏览器实例...")
     pdf_driver = create_chrome_for_pdf(save_path)
 
@@ -294,19 +99,20 @@ def main():
         successful_downloads = 0
         failed_downloads = 0
 
-        for i, link in enumerate(article_link_list, 1):
+        for i, article in enumerate(all_articles, 1):
             try:
-                print(f"\n[{i}/{len(article_link_list)}] 正在处理: {link}")
+                print(f"\n[{i}/{len(all_articles)}] 正在处理: {article}")
 
                 # 打开新标签页并访问文章链接
-                pdf_driver.execute_script(f'window.open("{link}");')
+                pdf_driver.execute_script(f'window.open("{article.link}");')
                 pdf_driver.switch_to.window(pdf_driver.window_handles[-1])
 
-                # 等待页面加载
-                sleep(10)
-
                 # 提取文章标题作为文件名
-                file_name = extract_article_title(pdf_driver.page_source)
+                title = article.title
+                # 如果为0表示付费，1表示免费
+                is_free = "免费" if article.is_free == 1 else "付费"
+                id = article.id
+                file_name = "[{}]-[{}]-{}".format(is_free, id, title)
                 # 清理文件名中的非法字符
                 file_name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', file_name)[:100]  # 限制长度
 
@@ -314,6 +120,66 @@ def main():
                     file_name = f"微信文章_{i}"
 
                 print(f"文章标题: {file_name}")
+
+                # 等待页面加载并模拟滚动
+                print(f"等待页面加载并模拟滚动以加载图片...")
+                sleep(10)  # 初始等待
+
+                # 模拟用户缓慢滚动到页面底部
+                def scroll_to_bottom_slowly(driver, max_scrolls=30):
+                    """
+                    模拟用户缓慢滚动到页面底部，确保图片加载
+
+                    Args:
+                        driver: WebDriver实例
+                        max_scrolls: 最大滚动次数，防止无限循环
+                    """
+                    scroll_count = 0
+                    last_height = driver.execute_script("return document.body.scrollHeight")
+
+                    while scroll_count < max_scrolls:
+                        # 记录滚动前的位置
+                        previous_position = driver.execute_script("return window.pageYOffset")
+
+                        # 滚动一段距离
+                        driver.execute_script("window.scrollBy(0, 500);")
+                        # 等待一段时间让图片加载
+                        sleep(2)
+
+                        # 获取当前滚动位置和页面高度
+                        current_position = driver.execute_script("return window.pageYOffset")
+                        current_height = driver.execute_script("return document.body.scrollHeight")
+
+                        scroll_count += 1
+                        print(f"滚动进度: {scroll_count}/{max_scrolls}")
+
+                        # 检查是否到达底部（允许一些误差）
+                        if (current_height - (
+                                current_position + driver.execute_script("return window.innerHeight"))) < 10:
+                            print("已到达页面底部")
+                            break
+
+                        # 如果页面高度增加了，说明加载了新内容
+                        if current_height > last_height:
+                            last_height = current_height
+                            print("检测到新内容加载，继续滚动...")
+                            continue
+
+                        # 如果滚动位置没有变化，可能已经到底部
+                        if abs(current_position - previous_position) < 10:
+                            print("滚动位置未变化，可能已到底部")
+                            break
+
+                    print(f"滚动完成，总共滚动 {scroll_count} 次")
+
+                try:
+                    scroll_to_bottom_slowly(pdf_driver)
+                    print("页面滚动完成，图片应该已加载")
+                except Exception as e:
+                    print(f"滚动过程中出现错误: {e}")
+
+                # 额外等待几秒确保所有图片加载完成
+                sleep(5)
 
                 # 执行打印操作
                 print("正在生成PDF...")
@@ -379,4 +245,20 @@ def main():
 
 
 if __name__ == "__main__":
+    # main()
+    # 创建参数解析器
+    parser = argparse.ArgumentParser(description='从MySQL数据库查询文章信息')
+    parser.add_argument('--host', required=True, help='MySQL服务器地址')
+    parser.add_argument('--database', required=True, help='数据库名称')
+    parser.add_argument('--user', required=True, help='用户名')
+    parser.add_argument('--password', required=True, help='密码')
+    parser.add_argument('--port', type=int, default=3306, help='端口号 (默认: 3306)')
+
+    # 解析命令行参数
+    args = parser.parse_args()
+
+    # 创建数据库连接
+    connection = create_connection(args.host, args.database, args.user, args.password, args.port)
+    all_articles = get_all_articles(connection)
     main()
+
