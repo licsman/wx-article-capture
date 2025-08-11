@@ -290,6 +290,59 @@ def is_next_button_available(driver):
         return False, None
 
 
+from datetime import datetime
+
+
+def parse_release_date(date_str):
+    """
+    解析发布日期字符串
+
+    Args:
+        date_str (str): 日期字符串
+
+    Returns:
+        datetime: 解析后的日期对象，如果解析失败返回None
+    """
+    if not date_str:
+        return None
+
+    # 支持多种常见的日期格式
+    date_formats = [
+        '%Y-%m-%d',
+        '%Y/%m/%d',
+        '%Y年%m月%d日',
+        '%Y-%m-%d %H:%M',
+        '%Y/%m/%d %H:%M'
+    ]
+
+    for fmt in date_formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+
+    print(f"无法解析日期格式: {date_str}")
+    return None
+
+
+def is_before_2020(date_str):
+    """
+    检查日期是否在2020年之前
+
+    Args:
+        date_str (str): 日期字符串
+
+    Returns:
+        bool: 如果日期在2020年之前返回True，否则返回False
+    """
+    parsed_date = parse_release_date(date_str)
+    if parsed_date is None:
+        return False
+
+    cutoff_date = datetime(2020, 1, 1)
+    return parsed_date < cutoff_date
+
+
 def collect_all_article_links(driver):
     """
     收集所有页面中的微信文章链接（包括翻页）
@@ -311,15 +364,29 @@ def collect_all_article_links(driver):
         current_page_articles = get_article_info_from_page(driver)
         print(f"第 {page_number} 页找到 {len(current_page_articles)} 个文章")
 
-        # 添加到列表中，并保存新链接
+        # 添加到列表中，并检查日期
         new_articles_count = 0
+        should_stop = False
+
         for article in current_page_articles:
+            # 检查日期是否在2020年之前
+            if is_before_2020(article['release_date']):
+                print(f"发现2020年前的文章: {article['title']} ({article['release_date']})")
+                print("停止采集，不再翻页")
+                should_stop = True
+                break  # 停止处理当前页的剩余文章
+
+            # 添加符合条件的文章
             link = article['link']
             all_articles.append(article)
             new_articles_count += 1
             print(f"  添加新文章: {article['title']}")
 
         print(f"第 {page_number} 页新增 {new_articles_count} 个文章")
+
+        # 如果需要停止，直接退出循环
+        if should_stop:
+            break
 
         # 检查是否还有下一页
         is_available, next_button = is_next_button_available(driver)

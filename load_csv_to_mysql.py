@@ -101,10 +101,12 @@ def main():
     parser.add_argument('--user', required=True, help='用户名')
     parser.add_argument('--password', required=True, help='密码')
     parser.add_argument('--port', type=int, default=3306, help='端口号 (默认: 3306)')
-    parser.add_argument('--csv-file', required=True, help='CSV文件路径')
+    parser.add_argument('--csv-file', required=False, help='CSV文件路径')
 
     # 解析命令行参数
     args = parser.parse_args()
+    args.csv_file = \
+        "/Users/houmengqi/code/wx-article-capture/wx_links_20250809180418.csv"
 
     # 检查CSV文件是否存在
     if not os.path.exists(args.csv_file):
