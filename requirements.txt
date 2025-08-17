@@ -1,3 +1,5 @@
+paddlenlp
+jieba3k
 pandas
 selenium>=4.0.0
 requests>=2.25.0

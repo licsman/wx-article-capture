@@ -1,0 +1,81 @@
+{
+  "total_word_count": 6000,
+  "top5_technical_keywords_with_nums": [
+    {
+      "keywords": "Flink CDC",
+      "nums": 63
+    },
+    {
+      "keywords": "PostgreSQL",
+      "nums": 20
+    },
+    {
+      "keywords": "MySQL",
+      "nums": 11
+    },
+    {
+      "keywords": "数据同步",
+      "nums": 5
+    },
+    {
+      "keywords": "Kafka",
+      "nums": 2
+    }
+  ],
+  "bigdata_official_technical_framework_with_ratio": [
+    {
+      "keywords": "Flink",
+      "ratio": 0.60
+    },
+    {
+      "keywords": "MySQL",
+      "ratio": 0.25
+    },
+    {
+      "keywords": "CDC",
+      "ratio": 0.15
+    }
+  ],
+  "occurred_industries_keywords_with_ratio": [
+    {
+      "industry": "金融",
+      "ratio": 0.7
+    },
+    {
+      "industry": "风控",
+      "ratio": 0.3
+    }
+  ],
+  "practicality_score_details": {
+    "operability": 3,
+    "reusability": 3,
+    "problem_solving": 7,
+    "total": 4.3
+  },
+  "professionalism_score": 8.0,
+  "uniqueness_score": 5.0,
+  "code_quality_score": 0,
+  "code_ratio": 0.00,
+  "practice_ratio": 0.1,
+  "theory_ratio": 0.9,
+  "structure_clarity_score": 8.0,
+  "reference_credibility_score": 5.0,
+  "is_interview_article": 1,
+  "optimized_title": "Flink CDC经典面试题200道：从基础到高级梳理",
+  "content_summary": "本文整理200道Flink CDC面试题，涵盖基础概念、多数据源同步、性能调优及应用场景，覆盖MySQL、PostgreSQL等数据源处理，适用于面试备考和技术知识体系构建。",
+  "content_advantage": [
+    "题量大",
+    "覆盖全",
+    "分类清",
+    "考点实",
+    "逻辑顺"
+  ],
+  "content_weakness": [
+    "全是题",
+    "无答案",
+    "缺代码",
+    "少实操",
+    "引流明显"
+  ],
+  "overall_recommendation_score": 6.5
+}
